@@ -1,0 +1,88 @@
+CREATE TABLE IF NOT EXISTS users (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ email VARCHAR(160) NOT NULL UNIQUE,
+ password_hash VARCHAR(255) NOT NULL,
+ role ENUM('admin','nurse','supervisor') NOT NULL,
+ active BOOLEAN NOT NULL DEFAULT 1,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS patients (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(150) NOT NULL,
+ document VARCHAR(20) NULL UNIQUE,
+ birth_date DATE NOT NULL,
+ sex ENUM('F','M') NOT NULL,
+ guardian_name VARCHAR(150) NOT NULL,
+ guardian_relationship VARCHAR(50) NOT NULL,
+ phone VARCHAR(20) NOT NULL,
+ address VARCHAR(250) NOT NULL DEFAULT '',
+ active BOOLEAN NOT NULL DEFAULT 1,
+ created_by INT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY (created_by) REFERENCES users(id),
+ INDEX (name)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS appointments (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ patient_id INT UNSIGNED NOT NULL,
+ scheduled_at DATETIME NOT NULL,
+ type ENUM('Primera atención','Control periódico','Seguimiento') NOT NULL,
+ status ENUM('Programada','Confirmada','Completada','No asistió','Cancelada') NOT NULL DEFAULT 'Programada',
+ note VARCHAR(500) NOT NULL DEFAULT '',
+ created_by INT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY (patient_id) REFERENCES patients(id),
+ FOREIGN KEY (created_by) REFERENCES users(id),
+ UNIQUE KEY patient_slot (patient_id, scheduled_at),
+ INDEX (scheduled_at, status)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS controls (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ patient_id INT UNSIGNED NOT NULL,
+ appointment_id INT UNSIGNED NULL UNIQUE,
+ control_date DATE NOT NULL,
+ weight DECIMAL(5,2) NOT NULL,
+ height DECIMAL(5,1) NOT NULL,
+ head_circumference DECIMAL(4,1) NULL,
+ development ENUM('Sin observaciones','Requiere seguimiento','Referencia indicada') NOT NULL,
+ findings TEXT NOT NULL,
+ instructions TEXT NOT NULL,
+ next_date DATE NULL,
+ created_by INT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (patient_id) REFERENCES patients(id),
+ FOREIGN KEY (appointment_id) REFERENCES appointments(id),
+ FOREIGN KEY (created_by) REFERENCES users(id),
+ INDEX (patient_id, control_date)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS vaccinations (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ patient_id INT UNSIGNED NOT NULL,
+ vaccine VARCHAR(100) NOT NULL,
+ dose VARCHAR(50) NOT NULL,
+ administered_date DATE NOT NULL,
+ note VARCHAR(500) NOT NULL DEFAULT '',
+ created_by INT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (patient_id) REFERENCES patients(id),
+ FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS audit_log (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id INT UNSIGNED NULL,
+ action VARCHAR(80) NOT NULL,
+ entity VARCHAR(40) NOT NULL,
+ entity_id INT UNSIGNED NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (user_id) REFERENCES users(id),
+ INDEX (created_at)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS login_attempts (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ identity_hash CHAR(64) NOT NULL,
+ attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX (identity_hash, attempted_at)
+) ENGINE=InnoDB;

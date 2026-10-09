@@ -1,0 +1,66 @@
+<?php
+declare(strict_types=1);
+function renderModal(string $modal,array $u): void {
+ $id=(int)($_GET['id']??0); $pid=(int)($_GET['patient_id']??0); $write=canWrite($u);
+ $read=['detail','appointment_detail','control_detail','patient_search'];
+ if (!in_array($modal,$read,true) && $modal!=='password' && !$write) throw new InvalidArgumentException('Tu perfil no puede modificar información.');
+ if (in_array($modal,['user','user_toggle'],true) && $u['role']!=='admin') throw new InvalidArgumentException('Acceso exclusivo de administración.');
+ if($modal==='patient') {
+   $p=$id?patient($id):[]; formStart('patient_save'); hidden('id',$id);
+   echo '<p class="form-note">Ingreso CRED: desde el nacimiento hasta antes de cumplir 12 años. El DNI puede completarse después. Las fichas existentes conservan su historial al superar la edad.</p><h3 class="form-section">Datos de la niña o niño</h3><div class="form-grid">';
+   field('Nombres y apellidos','name','text',$p['name']??'',true,'maxlength="150" autocomplete="off"'); field('DNI','document','text',$p['document']??'',false,'inputmode="numeric" pattern="[0-9]{8}" maxlength="8"'); field('Fecha de nacimiento','birth_date','date',$p['birth_date']??'',true,'max="'.date('Y-m-d').'" min="1900-01-01"'); selectField('Sexo','sex',['F'=>'Femenino','M'=>'Masculino'],$p['sex']??'');
+   echo '</div>'; credAgePanel('birth_date','',!$id); echo '<h3 class="form-section">Responsable y contacto</h3><div class="form-grid">'; field('Nombre del responsable','guardian_name','text',$p['guardian_name']??'',true,'maxlength="150"'); selectField('Parentesco','guardian_relationship',['Madre'=>'Madre','Padre'=>'Padre','Apoderado'=>'Apoderado','Otro'=>'Otro'],$p['guardian_relationship']??''); field('Teléfono de contacto','phone','tel',$p['phone']??'',true,'maxlength="20"'); field('Dirección','address','text',$p['address']??'',false,'maxlength="250"'); echo '</div>'; formEnd($id?'Guardar cambios':'Registrar paciente');
+ } elseif($modal==='patient_search') {
+   echo '<form method="get"><input type="hidden" name="page" value="patients"><label class="field"><span>Nombre, DNI o responsable</span><input type="search" name="q" placeholder="Escribe para buscar" autofocus required></label><footer class="form-footer"><button class="button primary">Buscar paciente</button></footer></form>';
+ } elseif($modal==='detail') {
+   $p=patient($id); echo '<div class="patient-summary"><span class="avatar large">'.e(mb_substr($p['name'],0,1)).'</span><div><h3>'.e($p['name']).'</h3><p>HC '.str_pad((string)$id,6,'0',STR_PAD_LEFT).' · '.e(age($p['birth_date'])).'</p></div>'.badge($p['active']?'Activo':'Inactivo').'</div><dl class="info-grid">';
+   foreach(['DNI'=>$p['document']?:'Pendiente','Nacimiento'=>dateLabel($p['birth_date']),'Edad exacta'=>credAgeLabel($p['birth_date'],date('Y-m-d')),'Grupo CRED'=>credStage($p['birth_date'],date('Y-m-d'))['label'],'Sexo'=>$p['sex']==='F'?'Femenino':'Masculino','Responsable'=>$p['guardian_name'].' ('.$p['guardian_relationship'].')','Teléfono'=>$p['phone'],'Dirección'=>$p['address']?:'No registrada'] as $key=>$value) echo '<div><dt>'.e($key).'</dt><dd>'.e($value).'</dd></div>';
+   echo '</dl><div class="action-strip">'; if($write) { echo modalLink('Editar ficha','patient',['id'=>$id]); if($p['active']) echo modalLink('Nuevo control','control',['patient_id'=>$id],'button primary').modalLink('Nueva cita','appointment',['patient_id'=>$id]); echo modalLink($p['active']?'Desactivar ficha':'Reactivar ficha','patient_toggle',['id'=>$id],'text-link'); } echo '</div><h3 class="form-section">Historial de controles</h3>';
+   $controls=rows('SELECT c.*,u.name AS author FROM controls c JOIN users u ON u.id=c.created_by WHERE c.patient_id=? ORDER BY c.control_date DESC,c.id DESC',[$id]);
+   if(!$controls) echo '<p class="muted">Todavía no hay controles registrados.</p>';
+   else { echo '<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Peso / Talla</th><th>Evaluación</th><th>Acción</th></tr></thead><tbody>'; foreach($controls as $c) echo '<tr><td>'.dateLabel($c['control_date']).'<small>'.e($c['author']).'</small></td><td>'.e($c['weight']).' kg / '.e($c['height']).' cm</td><td>'.badge($c['development']).'</td><td>'.modalLink('Ver control','control_detail',['id'=>$c['id']],'text-link').'</td></tr>'; echo '</tbody></table></div>'; }
+   echo '<h3 class="form-section">Citas pendientes</h3>';
+   $appointments=rows("SELECT * FROM appointments WHERE patient_id=? AND status IN ('Programada','Confirmada') ORDER BY scheduled_at",[$id]);
+   if(!$appointments) echo '<p class="muted">No hay citas pendientes.</p>';
+   foreach($appointments as $a) echo '<div class="history-line"><span>'.dateLabel($a['scheduled_at'],true).' · '.e($a['type']).'</span>'.badge(substr($a['scheduled_at'],0,10)<date('Y-m-d')?'Vencida':$a['status']).'<div class="row-actions">'.modalLink('Detalle','appointment_detail',['id'=>$a['id']],'text-link').'<a class="text-link" href="?page=agenda&amp;date='.e(substr($a['scheduled_at'],0,10)).'#cita-'.(int)$a['id'].'">Ver en agenda</a></div></div>';
+
+ } elseif($modal==='control') {
+   $aid=(int)($_GET['appointment_id']??0); $a=$aid?one('SELECT * FROM appointments WHERE id=?',[$aid]):null;
+   if($aid && !$a) throw new InvalidArgumentException('Cita no encontrada.'); if($a) $pid=(int)$a['patient_id'];
+   formStart('control_save'); hidden('appointment_id',$aid); echo '<p class="form-note">Registra la evaluación realizada. Las medidas no generan diagnósticos automáticos.</p><div class="form-grid">';
+   if($pid) { $p=activePatient($pid); hidden('patient_id',$pid); echo '<div class="field"><span>Paciente</span><strong class="fixed-value">'.e($p['name']).'</strong></div>'; } else selectField('Paciente','patient_id',patientOptions());
+   field('Fecha de atención','control_date','date',$a?substr($a['scheduled_at'],0,10):date('Y-m-d'),true,'max="'.date('Y-m-d').'"'); echo '</div>'; credAgePanel('patient_id','control_date'); echo '<h3 class="form-section">Medidas antropométricas</h3><div class="form-grid three">';
+   field('Peso (kg)','weight','number','',true,'min="0.1" max="150" step="0.01" placeholder="Ej. 9.80"'); field('Talla (cm)','height','number','',true,'min="20" max="200" step="0.1" placeholder="Ej. 74.5"'); field('Perímetro cefálico (cm)','head_circumference','number','',false,'min="15" max="80" step="0.1"'); echo '</div>';
+   selectField('Evaluación profesional del desarrollo','development',array_combine(['Sin observaciones','Requiere seguimiento','Referencia indicada'],['Sin observaciones','Requiere seguimiento','Referencia indicada']),'Sin observaciones'); textField('Hallazgos y observaciones','findings'); textField('Indicaciones para la familia','instructions','',true);
+   echo '<h3 class="form-section">Próximo encuentro</h3><p class="muted">Al completar fecha y hora se programará una cita de seguimiento. Revisa la periodicidad y el último control; la fecha queda a criterio del profesional.</p><div class="form-grid">'; field('Próxima fecha','next_date','date','',false,'min="'.date('Y-m-d').'"'); field('Hora de Lima','next_time','time','09:00',false); echo '</div>'; credAgePanel('patient_id','next_date'); formEnd('Guardar control');
+ } elseif($modal==='control_detail') {
+   $c=one('SELECT c.*,p.name,p.birth_date,u.name AS author FROM controls c JOIN patients p ON p.id=c.patient_id JOIN users u ON u.id=c.created_by WHERE c.id=?',[$id]); if(!$c) throw new InvalidArgumentException('Control no encontrado.');
+   echo '<div class="patient-summary"><div><h3>'.e($c['name']).'</h3><p>Control #'.$id.' · '.dateLabel($c['control_date']).'</p></div>'.badge($c['development']).'</div><dl class="info-grid">';
+   foreach(['Peso'=>$c['weight'].' kg','Talla'=>$c['height'].' cm','Perímetro cefálico'=>$c['head_circumference']?$c['head_circumference'].' cm':'No registrado','Registrado por'=>$c['author'],'Fecha de registro'=>dateLabel($c['created_at'],true),'Próximo control'=>dateLabel($c['next_date'])] as $key=>$value) echo '<div><dt>'.e($key).'</dt><dd>'.e($value).'</dd></div>';
+   echo '<div><dt>Edad en la atención</dt><dd>'.e(credAgeLabel($c['birth_date'],$c['control_date'])).'</dd></div><div><dt>Grupo CRED en la atención</dt><dd>'.e(credStage($c['birth_date'],$c['control_date'])['label']).'</dd></div></dl><h3 class="form-section">Hallazgos</h3><p class="prose">'.nl2br(e($c['findings']?:'Sin observaciones adicionales.')).'</p><h3 class="form-section">Indicaciones</h3><p class="prose">'.nl2br(e($c['instructions'])).'</p><footer class="form-footer">'.modalLink('Volver a la ficha','detail',['id'=>$c['patient_id']]).'</footer>';
+ } elseif($modal==='appointment') {
+   $a=$id?one('SELECT * FROM appointments WHERE id=?',[$id]):null; if($id && !$a) throw new InvalidArgumentException('Cita no encontrada.'); if($a) $pid=(int)$a['patient_id'];
+   formStart('appointment_save'); hidden('id',$id);
+   echo '<p class="form-note">'.($id?'Estás reprogramando una cita existente.':'Estás creando una nueva cita. Las citas pendientes existentes no se modifican.').'</p>';
+   if($pid) { $p=activePatient($pid); hidden('patient_id',$pid); echo '<p class="fixed-value">'.e($p['name']).'</p>'; } else selectField('Paciente','patient_id',patientOptions());
+   echo '<div class="form-grid">'; field('Fecha','date','date',$a?substr($a['scheduled_at'],0,10):($_GET['date']??date('Y-m-d')),true,'min="'.date('Y-m-d').'"'); field('Hora de Lima','time','time',$a?substr($a['scheduled_at'],11,5):'09:00'); echo '</div>';
+   credAgePanel('patient_id','date'); selectField('Tipo de atención','type',array_combine(['Primera atención','Control periódico','Seguimiento'],['Primera atención','Control periódico','Seguimiento']),$a['type']??'Control periódico'); textField('Observaciones','note',$a['note']??''); formEnd($id?'Reprogramar cita':'Programar cita');
+ } elseif($modal==='appointment_detail' || $modal==='appointment_status') {
+   $a=one('SELECT a.*,p.name FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?',[$id]); if(!$a) throw new InvalidArgumentException('Cita no encontrada.');
+   echo '<div class="patient-summary"><div><h3>'.e($a['name']).'</h3><p>'.dateLabel($a['scheduled_at'],true).' · Hora de Lima</p></div>'.badge($a['status']).'</div><p>'.e($a['type']).'</p><p class="prose">'.nl2br(e($a['note'])).'</p><div class="action-strip">'.modalLink('Ver ficha','detail',['id'=>$a['patient_id']]);
+   if($write && $a['status']!=='Completada') echo modalLink('Reprogramar','appointment',['id'=>$id]);
+   if($write && in_array($a['status'],['Programada','Confirmada'],true) && substr($a['scheduled_at'],0,10)<=date('Y-m-d')) echo modalLink('Registrar atención','control',['patient_id'=>$a['patient_id'],'appointment_id'=>$id],'button primary');
+   echo '</div>';
+   if($write && in_array($a['status'],['Programada','Confirmada'],true)) { formStart('appointment_status'); hidden('id',$id); selectField('Cambiar estado','status',['Confirmada'=>'Confirmada','No asistió'=>'No asistió','Cancelada'=>'Cancelada']); formEnd('Actualizar estado'); }
+
+ } elseif($modal==='patient_toggle' || $modal==='user_toggle') {
+   $target=$modal==='patient_toggle'?patient($id):one('SELECT id,name,active FROM users WHERE id=?',[$id]); if(!$target) throw new InvalidArgumentException('Registro no encontrado.');
+   formStart($modal); hidden('id',$id); echo '<p>Vas a '.($target['active']?'desactivar':'activar').' a <strong>'.e($target['name']).'</strong>.</p><p class="muted">'.($modal==='patient_toggle'?'El historial permanece disponible. Una ficha inactiva no admite nuevas atenciones.':'El cambio se aplica al acceso de esta cuenta.').'</p>'; formEnd($target['active']?'Confirmar desactivación':'Confirmar activación');
+ } elseif($modal==='user') {
+   $account=$id?one('SELECT name,email,role FROM users WHERE id=?',[$id]):[]; if($id && !$account) throw new InvalidArgumentException('Usuario no encontrado.');
+   formStart('user_save'); hidden('id',$id); field('Nombre completo','name','text',$account['name']??'',true,'maxlength="120"'); field('Correo de acceso','email','email',$account['email']??'',true,'maxlength="160" autocomplete="off"'); selectField('Perfil de acceso','role',['nurse'=>'Enfermería','supervisor'=>'Supervisor','admin'=>'Administrador'],$account['role']??'nurse');
+   echo '<label class="field"><span>'.($id?'Nueva contraseña (opcional)':'Contraseña inicial <b>*</b>').'</span><input type="password" name="password" '.($id?'':'required').' minlength="12" maxlength="255" autocomplete="new-password"><small>Mínimo 12 caracteres. '.($id?'Deja el campo vacío para conservar la actual.':'El usuario puede cambiarla en Mi cuenta.').'</small></label>'; formEnd($id?'Guardar cambios':'Crear usuario');
+ } elseif($modal==='password') {
+   formStart('password'); foreach(['current_password'=>'Contraseña actual','new_password'=>'Nueva contraseña','confirm_password'=>'Confirmar nueva contraseña'] as $key=>$label) echo '<label class="field"><span>'.e($label).' <b>*</b></span><input type="password" name="'.e($key).'" required '.($key!=='current_password'?'minlength="12"':'').' maxlength="255" autocomplete="'.($key==='current_password'?'current-password':'new-password').'"></label>'; formEnd('Actualizar contraseña');
+ } else throw new InvalidArgumentException('Ventana no encontrada.');
+}

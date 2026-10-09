@@ -1,0 +1,9 @@
+/storage/*
+!/storage/.htaccess
+!/storage/.gitkeep
+/.test-runtime/
+/.env
+/.env.*
+!/.env.example
+/*.docx
+*.log

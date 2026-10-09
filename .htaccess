@@ -1,0 +1,5 @@
+DirectoryIndex index.php
+Options -Indexes
+<FilesMatch "^(schema\.sql|.*\.docx|.*\.md)$">
+  Require all denied
+</FilesMatch>
