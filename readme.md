@@ -65,8 +65,6 @@ Apache debe permitir `.htaccess` para que se aplique el bloqueo de `storage`, `l
 
 La prueba requiere Apache local, genera cuentas y fichas temporales y elimina únicamente sus propios registros al finalizar. El respaldo produce un SQL dentro de `storage`, con estructura y datos consistentes. Para restaurar, importa el SQL en una base vacía de prueba mediante una cuenta con permisos de creación y verifica su contenido antes de cambiar la configuración de conexión. No restaures encima de una base de trabajo.
 
-## Móvil
-
 ## Railway
 
 El `Dockerfile` utiliza PHP 8.2 con Apache, PDO MySQL y mbstring. El dominio debe apuntar al puerto **80**. Configura en el servicio web `PORT=80`, `CRED_HTTPS=1` y las variables `MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER`, `MYSQLPASSWORD` como referencias al servicio MySQL. No publiques sus valores en Git.

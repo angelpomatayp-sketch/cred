@@ -31,6 +31,8 @@ try {
         }
         $insert = $db->prepare('INSERT INTO users (id,name,email,password_hash,role,active,created_at) VALUES (?,?,?,?,?,?,?)');
         foreach ($users as $u) $insert->execute([$u['id'],$u['name'],$u['email'],$u['password_hash'],$u['role'],$u['active'],$u['created_at']]);
+        $saved = $db->query('SELECT id,name,email,password_hash,role,active,created_at FROM users ORDER BY id')->fetchAll();
+        if ($saved != $users) throw new RuntimeException('No coincide la verificación de las cuentas.');
         $db->commit();
         echo 'Usuarios importados: '.count($users).". Roles y hashes conservados. Sin datos clínicos.\n";
     } finally {
