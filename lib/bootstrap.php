@@ -2,10 +2,11 @@
 declare(strict_types=1);
 date_default_timezone_set('America/Lima');
 require_once __DIR__.'/cred.php';
+require_once __DIR__.'/database.php';
 ini_set('display_errors', '0');
 ini_set('session.use_strict_mode', '1');
 session_name('CRED_SESSION');
-session_set_cookie_params(['httponly'=>true, 'samesite'=>'Lax', 'secure'=>!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'path'=>'/']);
+session_set_cookie_params(['httponly'=>true, 'samesite'=>'Lax', 'secure'=>getenv('CRED_HTTPS') === '1' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'path'=>'/']);
 session_start();
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
@@ -17,9 +18,7 @@ function e(mixed $v): string { return htmlspecialchars((string)$v, ENT_QUOTES | 
 function db(): PDO {
     static $pdo;
     if (!$pdo) {
-        $file = dirname(__DIR__) . '/storage/config.local.php';
-        if (!is_file($file)) throw new RuntimeException('El sistema necesita instalación mediante scripts/install.php.');
-        $c = require $file;
+        $c = databaseConfig();
         $pdo = new PDO($c['dsn'], $c['user'], $c['password'], [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false]);
         $pdo->exec("SET time_zone = '-05:00'");
     }

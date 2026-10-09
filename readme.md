@@ -67,6 +67,18 @@ La prueba requiere Apache local, genera cuentas y fichas temporales y elimina ú
 
 ## Móvil
 
+## Railway
+
+El `Dockerfile` utiliza PHP 8.2 con Apache, PDO MySQL y mbstring. El dominio debe apuntar al puerto **80**. Configura en el servicio web `PORT=80`, `CRED_HTTPS=1` y las variables `MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER`, `MYSQLPASSWORD` como referencias al servicio MySQL. No publiques sus valores en Git.
+
+`railway.json` ejecuta `php scripts/setup-cloud.php` antes de desplegar. Solo crea las tablas que faltan: no crea usuarios, no resetea contraseñas y no importa registros locales. No es un sistema de migraciones para futuros cambios de esquema.
+
+Para trasladar exclusivamente las cuentas, `scripts/transfer-users.php export` lee la configuración local y emite JSON sensible; debe canalizarse directamente al modo `import` por una conexión segura, sin publicarlo ni imprimirlo en registros. La importación exige una base destino vacía, preserva los hashes y roles, y se realiza en una transacción. No utiliza el instalador de XAMPP en Railway.
+
+Las sesiones son locales al contenedor: usa una sola réplica; al redesplegar puede ser necesario iniciar sesión de nuevo. El volumen del servicio MySQL conserva la base. Configura respaldos antes de utilizar datos reales.
+
+## Móvil y PWA
+
 La interfaz se adapta a teléfonos. Incluye manifest, iconos PWA y una pantalla de falta de conexión. Necesita conexión al servidor para registrar atenciones; no guarda datos clínicos en caché ni sincroniza offline. Para instalación PWA fuera de localhost se necesita HTTPS y un navegador compatible. El acceso desde otro dispositivo también necesita una dirección de red del servidor accesible desde ese dispositivo.
 
 ## Origen
