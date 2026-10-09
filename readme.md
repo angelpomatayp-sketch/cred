@@ -69,7 +69,7 @@ La prueba requiere Apache local, genera cuentas y fichas temporales y elimina ú
 
 El `Dockerfile` utiliza PHP 8.2 con Apache, PDO MySQL y mbstring. El dominio debe apuntar al puerto **80**. Configura en el servicio web `PORT=80`, `CRED_HTTPS=1` y las variables `MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER`, `MYSQLPASSWORD` como referencias al servicio MySQL. No publiques sus valores en Git.
 
-`railway.json` ejecuta `php scripts/setup-cloud.php` antes de desplegar. Solo crea las tablas que faltan: no crea usuarios, no resetea contraseñas y no importa registros locales. No es un sistema de migraciones para futuros cambios de esquema.
+El arranque del contenedor ejecuta `php scripts/setup-cloud.php` antes de iniciar Apache. Solo crea las tablas que faltan: no crea usuarios, no resetea contraseñas y no importa registros locales. No es un sistema de migraciones para futuros cambios de esquema.
 
 Para trasladar exclusivamente las cuentas, `scripts/transfer-users.php export` lee la configuración local y emite JSON sensible; debe canalizarse directamente al modo `import` por una conexión segura, sin publicarlo ni imprimirlo en registros. La importación exige una base destino vacía, preserva los hashes y roles, y se realiza en una transacción. No utiliza el instalador de XAMPP en Railway.
 
